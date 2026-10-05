@@ -1,0 +1,146 @@
+import { useMemo, useRef } from 'react'
+import { useFrame } from '@react-three/fiber'
+import * as THREE from 'three'
+
+export type PlanetConfig = {
+    name: string
+    distance: number
+    size: number
+    speed: number
+    color: string
+    emissive?: string
+    tilt?: number
+    hasRings?: boolean
+    ringColor?: string
+}
+
+export function Planet({
+                           distance,
+                           size,
+                           speed,
+                           color,
+                           emissive = '#000000',
+                           tilt = 0,
+                           hasRings = false,
+                           ringColor = '#d4a373',
+                       }: PlanetConfig) {
+    const orbitRef = useRef<THREE.Group>(null)
+    const planetRef = useRef<THREE.Mesh>(null)
+    const angleRef = useRef(Math.random() * Math.PI * 2)
+
+    const planetMat = useMemo(
+        () =>
+            new THREE.MeshStandardMaterial({
+                color: new THREE.Color(color),
+                emissive: new THREE.Color(emissive),
+                emissiveIntensity: 0.55,
+                roughness: 0.82,
+                metalness: 0.08,
+            }),
+        [color, emissive],
+    )
+
+    useFrame((_, delta) => {
+        const d = Math.min(delta, 0.05)
+        angleRef.current += d * speed
+
+        if (orbitRef.current) {
+            orbitRef.current.position.x = Math.cos(angleRef.current) * distance
+            orbitRef.current.position.z = Math.sin(angleRef.current) * distance
+        }
+
+        if (planetRef.current) {
+            planetRef.current.rotation.y += d * 0.5
+        }
+    })
+
+    return (
+        <>
+            {/* Anillo de órbita sutil */}
+            {/* ============================================================
+ *  ÓRBITA — 3 capas para un efecto de "carta astronómica":
+ *   1. Halo difuso ancho (muy sutil)
+ *   2. Línea principal crema/gold brillante
+ *   3. Ticks (marcas) cada 15° para dar el look técnico
+ * ============================================================ */}
+
+            {/* 1. Halo difuso */}
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.002, 0]}>
+                <ringGeometry args={[distance - 0.18, distance + 0.18, 220]} />
+                <meshBasicMaterial
+                    color="#c9b88a"
+                    transparent
+                    opacity={0.055}
+                    side={THREE.DoubleSide}
+                    depthWrite={false}
+                    blending={THREE.AdditiveBlending}
+                />
+            </mesh>
+
+            {/* 2. Línea principal brillante */}
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+                <ringGeometry args={[distance - 0.014, distance + 0.014, 240]} />
+                <meshBasicMaterial
+                    color="#e8d8a8"
+                    transparent
+                    opacity={0.55}
+                    side={THREE.DoubleSide}
+                    depthWrite={false}
+                    blending={THREE.AdditiveBlending}
+                />
+            </mesh>
+
+            {/* 3. Ticks — pequeñas marcas radiales cada 15° */}
+            {Array.from({ length: 24 }).map((_, i) => {
+                const angle = (i / 24) * Math.PI * 2
+                const tickLen = i % 6 === 0 ? 0.14 : 0.06 // más largas cada 90°
+                const x1 = Math.cos(angle) * (distance - 0.02)
+                const z1 = Math.sin(angle) * (distance - 0.02)
+                const x2 = Math.cos(angle) * (distance + tickLen)
+                const z2 = Math.sin(angle) * (distance + tickLen)
+                return (
+                    <line key={i}>
+                        <bufferGeometry>
+                            <bufferAttribute
+                                attach="attributes-position"
+                                args={[
+                                    new Float32Array([x1, 0, z1, x2, 0, z2]),
+                                    3,
+                                ]}
+                            />
+                        </bufferGeometry>
+                        <lineBasicMaterial
+                            color="#e8d8a8"
+                            transparent
+                            opacity={0.5}
+                            depthWrite={false}
+                        />
+                    </line>
+                )
+            })}
+
+            {/* Planeta orbitando */}
+            <group ref={orbitRef}>
+                <group rotation={[0, 0, tilt]}>
+                    <mesh ref={planetRef} material={planetMat}>
+                        <sphereGeometry args={[size, 48, 48]} />
+                    </mesh>
+
+                    {/* Anillos tipo Saturno */}
+                    {hasRings && (
+                        <mesh rotation={[Math.PI / 2 - 0.35, 0, 0]}>
+                            <ringGeometry args={[size * 1.5, size * 2.4, 96]} />
+                            <meshBasicMaterial
+                                color={ringColor}
+                                transparent
+                                opacity={0.55}
+                                side={THREE.DoubleSide}
+                                depthWrite={false}
+                            />
+                        </mesh>
+                    )}
+                </group>
+            </group>
+        </>
+    )
+}
